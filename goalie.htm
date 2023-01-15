@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Floorball Goalie trainer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <!--link rel="stylesheet" href="style.css" / -->
+    <!-- link rel="preconnect" href="https://fonts.gstatic.com" -->
+    <!-- link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet"-- >
+</head>
+
+<!--
+    Goal 160x115 cm
+-->
+<body>
+    <div id="canvas-div">
+      <canvas id="canvas" width="800" height="575"></canvas>
+    </div>
+    <div id="info">Calibrate glove colors by placing in center and then moving in lower corners</div>
+    <div id="status"></div>
+    <div id="glove-canvas-div">
+        <canvas id="glove-canvas" width="100" height="100"></canvas>
+      </div>
+  
+    <div class="webcam">
+        video
+        <div class="video-outer">
+            <video id="video" height="5%" width="5%" autoplay></video>
+        </div>
+
+        <div class="webcam-start-stop">
+            <a href="#!" class="btn-start" onclick="start()">Start</a>
+            <a href="#!" class="btn-stop" onclick="StopWebCam()">Stop</a>
+        </div>
+    </div>
+
+
+
+    <script>
+       var video_paused = false        
+
+        var StopWebCam = function () {
+            var stream = video.srcObject;
+            var tracks = stream.getTracks();
+
+            for (var i = 0; i < tracks.length; i++) {
+                var track = tracks[i];
+                track.stop();
+            }
+            video.srcObject = null;
+            video_paused = true
+        }
+
+        var start = function () {
+            //var video = document.getElementById("video"),
+            var vendorURL = window.URL || window.webkitURL;
+
+            if (navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function (stream) {
+                        video.srcObject = stream;
+                        video_paused = false                        
+                    }).catch(function (error) {
+                        console.log("Something went wrong");
+                    });
+            }
+        }
+        //$(function () { start(); });
+        //let canvas = document.createElement('canvas');
+        let canvas = document.getElementById('canvas');
+        var video = document.getElementById('video');
+
+//canvas.width = 1920;
+//canvas.height = 1080;
+canvas.width = 1600/2;
+canvas.height = 1150/2;
+let xStart = 0
+let yStart = 0
+let xEnd = canvas.width
+let yEnd = canvas.height
+
+
+let ctx = canvas.getContext('2d');
+video.addEventListener('loadeddata', function() {
+  //video.play();  // start playing
+  update(); //Start rendering
+  //setTimeout(videoLoop, 1000 / 30);
+});
+var state = 0
+var prevctrlData = null
+var prevcsum = 0
+var updatecnt = 0
+function update(){
+  console.log("update")    
+  updatecnt++
+  if (!video_paused) {
+    ctx.save()
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);   
+    ctx.restore()
+    if (state == 0) {
+        size =100
+        ctx.strokeRect((canvas.width-size)/2,(canvas.height-size), size, size)
+        ctx.strokeRect((canvas.width-size),(canvas.height-size), size, size)
+        var gloveData = ctx.getImageData((canvas.width-size)/2,(canvas.height-size), size, size)
+        ctrlData = ctx.getImageData((canvas.width-size),(canvas.height-size), size, size)        
+        if (prevctrlData && ctrlData) {
+            var rdiff = 0
+            var gdiff = 0
+            var bdiff = 0
+            var diffsum = 0
+            var csum = 0
+            for (var i = 0;  i < 4*size*size; i+=4) {
+                rdiff += Math.abs(ctrlData.data[i+0]-prevctrlData.data[i+0])
+                gdiff += Math.abs(ctrlData.data[i+1]-prevctrlData.data[i+1])
+                bdiff += Math.abs(ctrlData.data[i+2]-prevctrlData.data[i+2])
+                diffsum += (ctrlData.data[i+0]-prevctrlData.data[i+0])
+                diffsum += (ctrlData.data[i+1]-prevctrlData.data[i+1])
+                diffsum += (ctrlData.data[i+2]-prevctrlData.data[i+2])
+                csum += (ctrlData.data[i+0])
+                csum += (ctrlData.data[i+1])
+                csum += (ctrlData.data[i+2])
+            }
+            var absdiffsum = rdiff+gdiff+bdiff
+            csum = csum /(size*size)
+            document.getElementById("status").innerHTML = "Diff:" + diffsum +"  " + absdiffsum + "sum:"+ csum
+                var rsum = 0
+                var gsum = 0
+                var bsum = 0
+                var rmin = 255
+                var gmin = 255
+                var bmin = 255
+                var rmax = 0
+                var gmax = 0
+                var bmax = 0
+
+                for (var i = 0;  i < 4*size*size; i+=4) {
+                  rmin = Math.min(rmin,gloveData.data[i+0])
+                  rmax = Math.max(rmax,gloveData.data[i+0])
+                  gmin = Math.min(gmin,gloveData.data[i+1])
+                  gmax = Math.max(gmax,gloveData.data[i+1])
+                  bmin = Math.min(bmin,gloveData.data[i+2])
+                  bmax = Math.max(bmax,gloveData.data[i+2])
+
+                  rsum += (gloveData.data[i+0])
+                  gsum += (gloveData.data[i+1])
+                  bsum += (gloveData.data[i+2])
+                }
+                rsum = parseInt(rsum /(size*size))
+                gsum = parseInt(gsum /(size*size))
+                bsum = parseInt(bsum /(size*size))
+                ctx.fillStyle = "#"+(rsum).toString(16)+(gsum).toString(16)+(bsum).toString(16)
+                ctx.fillRect(20, 20, 150, 100)
+
+
+            if (updatecnt > 10 && Math.abs(prevcsum - csum) > 50)  {
+                document.getElementById("status").innerHTML += " OK! "+rmin+"-"+rsum+"-"+rmax+","+gmin+"-"+gsum+"-"+gmax+","+bmin+"-"+bsum+"-"+bmax
+                state += 1
+            }
+        }
+        prevctrlData = ctrlData
+        prevcsum = csum
+    }
+    //requestAnimationFrame(update); // wait for the browser to be ready to present another animation fram.       
+    setTimeout(update, 1000 / 10);    
+  }    
+}
+function videoLoop() {
+    console.log("videoLoop")
+    if (video && !video_paused) {
+        ctx.drawImage(video, xStart, yStart, xEnd - xStart, yEnd - yStart);
+        setTimeout(videoLoop, 1000 / 30);
+    }
+}
+//ctx.drawImage( video, 0, 0, canvas.width, canvas.height );
+
+//let image = canvas.toDataURL('image/jpeg');
+    start()
+    //videoLoop()
+    </script>
+
+</body>
+
+</html>
