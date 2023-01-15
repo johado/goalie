@@ -9,15 +9,34 @@
     <!--link rel="stylesheet" href="style.css" / -->
     <!-- link rel="preconnect" href="https://fonts.gstatic.com" -->
     <!-- link href="https://fonts.googleapis.com/css2?family=Oswald&display=swap" rel="stylesheet"-- >
+<style>
+.wrapper {
+    position: relative;
+    width: 800px;
+    height: 575px;
+}
+
+.wrapper canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}     
+</style>   
 </head>
 
 <!--
     Goal 160x115 cm
 -->
 <body>
+<div class="wrapper">
+    <canvas id="canvas-bg" width="800" height="575"></canvas>
+    <canvas id="canvas" width="800" height="575"></canvas>
+</div>    
+<!--
     <div id="canvas-div">
-      <canvas id="canvas" width="800" height="575"></canvas>
+      <canvas id="canvas" width="800" height="575" style="background: url('./fb_center.JPG')"></canvas>
     </div>
+-->    
     <div id="info">Calibrate glove colors by placing in center and then moving in lower corners</div>
     <div id="status"></div>
     <div id="glove-canvas-div">
@@ -36,10 +55,57 @@
         </div>
     </div>
 
-
-
+  
+    <script async src="https://docs.opencv.org/3.4.0/opencv.js" type="text/javascript" onload="onOpenCvReady();"></script>
     <script>
+     var opencv_ready = false
+     var bgloaded = false
+     function onOpenCvReady()
+     {
+        console.log("opencv.js ready")
+        opencv_ready = true
+        if (bgloaded) {
+          console.log("opencv ready and bg")
+          loadBgwithcv()
+        }
+        console.log("bgready and opencv")
+     }
        var video_paused = false        
+       var background = new Image();
+       // To avoid "tainted by cross-origin" errors
+       //background.setAttribute('crossOrigin', '');
+       //background.crossOrigin = "Anonymous"       
+       background.src = "fb_center.JPG";
+
+
+// Make sure the image is loaded first otherwise nothing will draw.
+background.onload = function(){
+   ctxbg.drawImage(background,0,0, canvas.width,canvas.height);
+   if (opencv_ready) {
+      console.log("bgready and opencv")
+     loadBgwithcv()
+   } else {
+      console.log("bgloaded but not opencv")
+   }
+   bgloaded = true
+}
+function loadBgwithcv()
+{
+  //  let mat = cv.imread(background);
+  let mat = cv.imread(canvas);
+     cv.imshow('canvas', mat);
+     mat.delete();
+
+}
+function cvanalyze()
+{
+  //let mat = cv.imread(background);
+  let mat = cv.imread(canvas);
+  cv.imshow('canvas-bg', mat);
+  mat.delete();
+
+}
+
 
         var StopWebCam = function () {
             var stream = video.srcObject;
@@ -70,6 +136,7 @@
         //$(function () { start(); });
         //let canvas = document.createElement('canvas');
         let canvas = document.getElementById('canvas');
+        let canvasbg = document.getElementById('canvas-bg');
         var video = document.getElementById('video');
 
 //canvas.width = 1920;
@@ -83,6 +150,7 @@ let yEnd = canvas.height
 
 
 let ctx = canvas.getContext('2d');
+let ctxbg = canvasbg.getContext('2d');
 video.addEventListener('loadeddata', function() {
   //video.play();  // start playing
   update(); //Start rendering
@@ -95,10 +163,20 @@ var updatecnt = 0
 function update(){
   console.log("update")    
   updatecnt++
+  //ctx.drawImage(background,0,0,canvas.width,canvas.height);     
   if (!video_paused) {
     ctx.save()
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);   
+    //ctx.scale(-1,1); 
+    //ctx.translate(video.videoWidth, 0);
+    //ctx.translate(canvas.width, 0);
+    //ctx.drawImage(video,0,0,canvas.width,canvas.height);   
+    //ctx.scale(1,1); ctx.translate(0, 0);
+    ctx.setTransform(-1*canvas.width/video.videoWidth,0,0,1*canvas.height/video.videoHeight,canvas.width,0);
+    ctx.drawImage(video, 0,0);
+    ctx.setTransform(1,0,0,1,0,0);    
+    // ctx.doYourOtherDrawings();    
     ctx.restore()
+    cvanalyze()
     if (state == 0) {
         size =100
         ctx.strokeRect((canvas.width-size)/2,(canvas.height-size), size, size)
